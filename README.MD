@@ -1,6 +1,6 @@
 # Pico W HTTP Relay
 
-Control a relay (or any other input) via HTTP
+Control a relay (or any other output) via HTTP
 
 # HTTP Endpoints
 
