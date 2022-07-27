@@ -1,12 +1,30 @@
-from wlan import WLAN
+import wlan
 import config_manager
 import http_server
 import relay
 import internal_led
 import console
 import _thread
+from utime import sleep
+import machine
 
-wlan_connection = None
+def background_thread():
+    stmt = ""
+    console_btn = machine.Pin(9, machine.Pin.IN, machine.Pin.PULL_DOWN)
+    
+    while True:
+        if (console_btn.value() == 1):
+            print("Activating console, other background functions are disabled!")
+            console.start(console_handler)
+        elif not wlan.is_connected:
+            print("NO WLAN")
+            connect()
+        sleep(1)
+            
+
+def connect():
+    config = config_manager.read()
+    wlan.connect(config['ssid'], config['password'], config['debug'] == 1)
 
 def http_handler(path :str):
     if path == "status":
@@ -24,7 +42,7 @@ def console_handler(command :str):
             config_manager.write("ssid", command[9:])
             print("set ssid to ", command[9:])
         elif command.startswith("set:pass:"):
-            config_manager.write("pass", command[9:])
+            config_manager.write("password", command[9:])
         elif command.startswith("set:debug:"):
             config_manager.write("debug", 1 if command[10:] == "1" else 0)
         elif command.startswith("relay:"):
@@ -38,13 +56,15 @@ def console_handler(command :str):
         elif command == "ifconfig":
             print("Connection status")
             if wlan_connection:
-                ifconfig = wlan_connection.ifconfig()
+                ifconfig = wlan.ifconfig()
                 print("IP: ", ifconfig[0])
                 print("Subnet Mask: ", ifconfig[1])
                 print("Gateway: ", ifconfig[2])
                 print("DNS: ", ifconfig[3])
             else:
                 print("Not connected")
+        elif command == "config":
+            print(config_manager.read())
     except Exception as e:
         if config_manager.read()['debug'] == 1:
             print(e)
@@ -53,12 +73,11 @@ def console_handler(command :str):
 
 if __name__ == "__main__":
     try:
-        _thread.start_new_thread(console.start, (console_handler,))
+        _thread.start_new_thread(background_thread, ())
         config = config_manager.read()
         if config['debug'] == 1:
             print(config)
-        wlan_connection = WLAN(config['ssid'], config['password'], config['debug'] == 1)
-        wlan_connection.connect()
+        connect()
         http_server.serve(handler=http_handler, debug=config['debug'] == 1)
     except Exception as e:
         print(e)
